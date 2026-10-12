@@ -37,7 +37,7 @@ for infile in *.F.fq.gz; do
       "${base}.F.fq.gz" "${base}.R.fq.gz" \
       "../Trimmomatic_01/${base}.F_trim.fq.gz" "../Trimmomatic_01/${base}.F_untrim.fq.gz" \
       "../Trimmomatic_01/${base}.R_trim.fq.gz" "../Trimmomatic_01/${base}.R_untrim.fq.gz" \
-      HEADCROP:12 LEADING:20 TRAILING:20 SLIDINGWINDOW:4:20 MINLEN:50
+      HEADCROP:12 LEADING:20 TRAILING:20 SLIDINGWINDOW:4:20 MINLEN:50 subir a 100
 done
 
 Aplicar el FASTQC a estos archivos para ver como quedaron los recortes
@@ -48,15 +48,25 @@ fastqc *trim.fq.gz  (en la carpeta de Trimmomatic_01)
 
 Entrar a la carpeta Trimmomatic_01 y mover los .html y los .zip
 
-mv /home/usuario/curso/02.Trimmomatic/*.html . mv /home/usuario/curso/02.Trimmomatic/*.zip .
+mv *.html /home/celiabc/BEGIOAM/Secuencias_limpieza_01/
+mv *.zip /home/celiabc/BEGIOAM/Secuencias_limpieza_01/
 
 Mover los archivos.html del servidor a la computadora local para poder visualizarlos
 
-scp -r -P 1967 usuario@132.248.15.41:/bhome/usuario/curso/03.FastQC_limpios/*.html /home/Usuario/Desktop/NGS/03.FastQC_limpios
+scp -r -P 1967 celiabc@132.248.15.41:/home/celiabc/BEGIOAM/Secuencias_limpieza_01/*.html D:/BEGIOAM/Secuencias_limpieza_01
 
 Abrir los .html y verificar si mejoró la calidad. En caso de no mejorar, repetir a partir del paso 4, definiendo nuevos parámetros de limpieza.
 
 Una vez obtenidos los .fastq con la calidad deseada, copiarlos del servidor a la computadora local para respaldarlos. Estos serán los datos que se emplearán en los análisis posteriores.
+
+volver a correr trimmomatic incluyendo un filtro de calidad
+revisar las nuevas secuencias
+si todo está ok correrlas en FastP para eliminar las colas
+hacer en ensamblaje
+hacer el snp calling y hacer los filtros de los snps
+
+####Ensamblar contra el genoma de referencia
+esto se hace con ipayrad
 
 ####6. SNPs calling en ipyrad
 
