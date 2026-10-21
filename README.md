@@ -65,6 +65,61 @@ si todo está ok correrlas en FastP para eliminar las colas
 hacer en ensamblaje
 hacer el snp calling y hacer los filtros de los snps
 
+
+
+######Aplicación nuevamente de TRimmomatic
+#!/bin/bash
+set -euo pipefail
+
+OUTDIR="../Trimmomatic_02"
+ADAPTERS="/ruta/a/adapters/TruSeq3-PE-2.fa"   # <-- ajusta a tu archivo de adaptadores
+
+mkdir -p "$OUTDIR"
+
+for infile in *.F.fq.gz; do
+
+    # Extrae el nombre base quitando el .F.fq.gz
+    base=$(basename "$infile" .F.fq.gz)
+
+    # Verifica que exista el par reverso
+    if [[ ! -f "${base}.R.fq.gz" ]]; then
+        echo "AVISO: no se encontró ${base}.R.fq.gz, se omite la muestra." >&2
+        continue
+    fi
+
+    echo "Procesando muestra: $base"
+
+    trimmomatic PE -threads 10 -phred33 \
+      "${base}.F.fq.gz" "${base}.R.fq.gz" \
+      "${OUTDIR}/${base}.F_trim.fq.gz" "${OUTDIR}/${base}.F_untrim.fq.gz" \
+      "${OUTDIR}/${base}.R_trim.fq.gz" "${OUTDIR}/${base}.R_untrim.fq.gz" \
+      ILLUMINACLIP:${ADAPTERS}:2:30:10 \
+      HEADCROP:12 \
+      LEADING:20 \
+      TRAILING:20 \
+      SLIDINGWINDOW:4:20 \
+      AVGQUAL:20 \
+      MINLEN:100 \
+      2> "${OUTDIR}/${base}.trimmomatic.log"
+
+done
+
+Aplicar FASTQC
+
+fastqc *trim.fq.gz  (en la carpeta de Trimmomatic_02)
+
+
+mv *.html /home/celiabc/BEGIOAM/Secuencias_limpieza_02/
+mv *.zip /home/celiabc/BEGIOAM/Secuencias_limpieza_02/
+
+Mover los archivos.html del servidor a la computadora local para poder visualizarlos
+
+scp -r -P 1967 celiabc@132.248.15.41:/home/celiabc/BEGIOAM/Secuencias_limpieza_02/*.html D:/BEGIOAM/Secuencias_limpieza_02
+
+Abrir los .html y verificar si mejoró la calidad. En caso de no mejorar, repetir a partir del paso 4, definiendo nuevos parámetros de limpieza.
+
+Una vez obtenidos los .fastq con la calidad deseada, copiarlos del servidor a la computadora local para respaldarlos. Estos serán los datos que se emplearán en los análisis posteriores.
+
 ####Ensamblar contra el genoma de referencia
 esto se hace con ipayrad
 
