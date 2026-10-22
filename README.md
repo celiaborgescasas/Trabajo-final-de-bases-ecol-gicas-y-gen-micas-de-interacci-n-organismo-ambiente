@@ -120,6 +120,99 @@ Abrir los .html y verificar si mejoró la calidad. En caso de no mejorar, repeti
 
 Una vez obtenidos los .fastq con la calidad deseada, copiarlos del servidor a la computadora local para respaldarlos. Estos serán los datos que se emplearán en los análisis posteriores.
 
+Hacer el filtrado en fastp
+instalarlo en el servidor
+ # download the latest build
+wget http://opengene.org/fastp/fastp
+chmod a+x ./fastp
+
+#!/bin/bash
+set -euo pipefail
+
+FASTP="$HOME/fastp"                  # ejecutable descargado con wget (como en tu imagen)
+INDIR="../Trimmomatic_01"            # <-- carpeta con tus lecturas de entrada
+OUTDIR="../fastp_polyGA"
+
+mkdir -p "$OUTDIR"
+
+for f in "${INDIR}"/*.F_trim.fq.gz; do
+
+    base=$(basename "$f" .F_trim.fq.gz)
+    r="${INDIR}/${base}.R_trim.fq.gz"
+
+    if [[ ! -f "$r" ]]; then
+        echo "AVISO: no se encontró $r, se omite." >&2
+        continue
+    fi
+
+    echo "Procesando muestra: $base"
+
+    "$FASTP" \
+      -i "$f" -I "$r" \
+      -o "${OUTDIR}/${base}.F_polyGA.fq.gz" \
+      -O "${OUTDIR}/${base}.R_polyGA.fq.gz" \
+      -A -Q \
+      --trim_poly_g --poly_g_min_len 10 \
+      --trim_poly_x --poly_x_min_len 10 \
+      --length_required 50 \
+      --thread 10 \
+      --html "${OUTDIR}/${base}.fastp.html" \
+      --json "${OUTDIR}/${base}.fastp.json" \
+      2> "${OUTDIR}/${base}.fastp.log"
+
+done
+
+aplicar nuevamente trimmomatic
+
+#!/bin/bash
+set -euo pipefail
+
+OUTDIR="../Trimmomatic_03"
+ADAPTERS="/ruta/a/adapters/TruSeq3-PE-2.fa"   # <-- ajusta
+CROPLEN=137                                    # <-- ajusta según la longitud real
+
+mkdir -p "$OUTDIR"
+
+for infile in *.F_polyGA.fq.gz; do
+
+    base=$(basename "$infile" .F_polyGA.fq.gz)
+    r="${base}.R_polyGA.fq.gz"
+
+    if [[ ! -f "$r" ]]; then
+        echo "AVISO: no se encontró $r, se omite la muestra." >&2
+        continue
+    fi
+
+    echo "Procesando muestra: $base"
+
+    trimmomatic PE -threads 10 -phred33 \
+      "$infile" "$r" \
+      "${OUTDIR}/${base}.F_trim.fq.gz" "${OUTDIR}/${base}.F_unpaired.fq.gz" \
+      "${OUTDIR}/${base}.R_trim.fq.gz" "${OUTDIR}/${base}.R_unpaired.fq.gz" \
+      ILLUMINACLIP:${ADAPTERS}:2:30:10 \
+      HEADCROP:8 \
+      CROP:${CROPLEN} \
+      LEADING:20 \
+      TRAILING:20 \
+      SLIDINGWINDOW:4:20 \
+      AVGQUAL:20 \
+      MINLEN:100 \
+      2> "${OUTDIR}/${base}.trimmomatic.log"
+
+done
+
+fastqc *trim.fq.gz  (en la carpeta de Trimmomatic_03)
+
+mv *.html /home/celiabc/BEGIOAM/Secuencias_limpieza_03/
+mv *.zip /home/celiabc/BEGIOAM/Secuencias_limpieza_03/
+
+Mover los archivos.html del servidor a la computadora local para poder visualizarlos
+
+scp -r -P 1967 celiabc@132.248.15.41:/home/celiabc/BEGIOAM/Secuencias_limpieza_03/*.html D:/BEGIOAM/Secuencias_limpieza_03
+
+
+
+
 ####Ensamblar contra el genoma de referencia
 esto se hace con ipayrad
 
