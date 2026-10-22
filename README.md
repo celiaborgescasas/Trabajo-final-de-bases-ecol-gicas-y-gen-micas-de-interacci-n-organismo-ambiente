@@ -210,11 +210,55 @@ Mover los archivos.html del servidor a la computadora local para poder visualiza
 
 scp -r -P 1967 celiabc@132.248.15.41:/home/celiabc/BEGIOAM/Secuencias_limpieza_03/*.html D:/BEGIOAM/Secuencias_limpieza_03
 
+#!/bin/bash
+set -euo pipefail
+
+INDIR="$HOME/BEGIOAM/Trimmomatic_02"        # <-- carpeta con los *_trim.fq.gz
+OUTDIR="$HOME/BEGIOAM/Trimmomatic_04"
+mkdir -p "$OUTDIR"
+
+for f in "${INDIR}"/*.F_trim.fq.gz; do
+
+    base=$(basename "$f" .F_trim.fq.gz)
+    r="${INDIR}/${base}.R_trim.fq.gz"
+
+    if [[ ! -f "$r" ]]; then
+        echo "AVISO: no se encontró $r, se omite la muestra." >&2
+        continue
+    fi
+
+    echo "Procesando muestra: $base"
+
+    trimmomatic PE -threads 10 -phred33 \
+      "$f" "$r" \
+      "${OUTDIR}/${base}.F_trim.fq.gz" "${OUTDIR}/${base}.F_unpaired.fq.gz" \
+      "${OUTDIR}/${base}.R_trim.fq.gz" "${OUTDIR}/${base}.R_unpaired.fq.gz" \
+      CROP:125 \
+      2> "${OUTDIR}/${base}.trimmomatic.log"
+
+done
+
+mv *.html /home/celiabc/BEGIOAM/Secuencias_limipieza_04/
+mv *.zip /home/celiabc/BEGIOAM/Secuencias_limipieza_04/
+scp -r -P 1967 celiabc@132.248.15.41:/home/celiabc/BEGIOAM/Secuencias_limipieza_04/*.html D:/BEGIOAM/Secuencias_limipieza_04
+
+
 
 
 
 ####Ensamblar contra el genoma de referencia
 esto se hace con ipayrad
+
+
+
+
+
+
+
+
+
+
+
 
 ####6. SNPs calling en ipyrad
 
