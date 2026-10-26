@@ -247,16 +247,61 @@ scp -r -P 1967 celiabc@132.248.15.41:/home/celiabc/BEGIOAM/Secuencias_limipieza_
 
 
 ####Ensamblar contra el genoma de referencia
-esto se hace con ipayrad
+copiar el genoma de referencia 
+
+scp -r -P 1967 D:/BEGIOAM/genomev3/* celiabc@132.248.15.41:/home/celiabc/BEGIOAM/Reference
+verificar la cantidad de secuencias creadas con ls ls | wc -l 
+-Indexar el genoma de referencia
+# Crear un ambiente con todo lo necesario
+conda create -n align -c conda-forge -c bioconda bwa-mem2 samtools fastp fastqc angsd bcftools
+conda activate align
+
+# Verificar
+bwa-mem2 version
+
+1- Se indexa
+
+cd /home/celiabc/BEGIOAM/Reference
+bwa index assembly3.fasta
+ls assembly3.fasta*
+
+2-Se alinea
+
+cd /home/celiabc/BEGIOAM/Secuencias_limipieza_04
+conda activate align
+nohup bash alinear.sh > alinear.log 2>&1 &
+sleep 60; tail -n 5 alinear.log
+
+3-Se revisa la calidad del mapeo
+
+conda activate align
+cd /home/celiabc/BEGIOAM/Mapeo
+
+for B in *.dedup.bam; do
+  echo "== $B"
+  samtools flagstat $B | grep -E "mapped \(|properly paired"
+  samtools coverage $B | awk 'NR>1{l+=$3; c+=$7*$3} END{printf "Cobertura media: %.2fx\n", c/l}'
+done
+
+Busca >90% de lecturas mapeadas y una cobertura similar entre muestras. Si alguna muestra es muy baja (por ejemplo <1x o <70% mapeado), considera excluirla.
 
 
 
+4-Buscar la lista de BAM
+ls $PWD/*.dedup.bam > bam.list
+wc -l bam.list      # debe dar 10
 
+3. ANGSD: genotype likelihoods y SNPs
 
+Con 10 muestras, -minInd 8 (80%). Ajusta -setMinDepth y -setMaxDepth según la cobertura que obtuviste (por ejemplo, mínimo 10 y máximo ~2x la profundidad total media).
 
-
-
-
+angsd -bam bam.list -ref /home/celiabc/BEGIOAM/Reference/assembly3.fasta \
+  -out chippurus \
+  -GL 2 -doMajorMinor 1 -doMaf 1 -minMaf 0.05 -SNP_pval 1e-6 \
+  -doCounts 1 -doPost 1 -doGeno 3 -postCutoff 0.95 \
+  -minQ 20 -minMapQ 30 \
+  -uniqueOnly 1 -remove_bads 1 -only_proper_pairs 1 \
+  -minInd 8 -doBcf 1 -P 20
 
 
 
