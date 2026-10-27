@@ -240,10 +240,6 @@ done
 
 mv *.html /home/celiabc/BEGIOAM/Secuencias_limipieza_04/
 mv *.zip /home/celiabc/BEGIOAM/Secuencias_limipieza_04/
-scp -r -P 1967 celiabc@132.248.15.41:/home/celiabc/BEGIOAM/Secuencias_limipieza_04/*.html D:/BEGIOAM/Secuencias_limipieza_04
-
-
-
 
 
 ####Ensamblar contra el genoma de referencia
@@ -302,6 +298,58 @@ angsd -bam bam.list -ref /home/celiabc/BEGIOAM/Reference/assembly3.fasta \
   -minQ 20 -minMapQ 30 \
   -uniqueOnly 1 -remove_bads 1 -only_proper_pairs 1 \
   -minInd 8 -doBcf 1 -P 20
+
+
+
+scp -r -P 1967 celiabc@132.248.15.41:/home/celiabc/BEGIOAM/Mapeo/.tar.gz * D:/BEGIOAM/R
+
+
+
+
+##análisis después de la poda
+
+PCA y NAdmixture
+cd /home/celiabc/BEGIOAM/Mapeo
+mkdir -p PCA_podado NGSadmix_podado
+
+2. Generar pruned.beagle.gz (si aún no lo hiciste)
+bash
+sed 's/:/_/' thin1kb.unlinked.id > unlinked.markers
+awk 'NR==FNR{k[$1]=1; next} FNR==1 || ($1 in k)' unlinked.markers \
+  <(zcat thin1kb.beagle.gz) | gzip > pruned.beagle.gz
+zcat pruned.beagle.gz | wc -l     # debe dar 129049
+
+PCA
+conda activate popgen
+cd /home/celiabc/BEGIOAM/Mapeo
+pcangsd -b pruned.beagle.gz -o PCA_podado/pruned_pca -t 8 > PCA_podado/pcangsd.log 2>&1
+ls -lh PCA_podado/
+
+
+NAdmix
+
+compactando archivos para pasarlos a la PC
+
+cd /home/celiabc/BEGIOAM/Mapeo
+tar czf podado_R.tar.gz PCA_podado/*.cov NGSadmix_podado/*.qopt NGSadmix_podado/*.log
+tar tzf podado_R.tar.gz | wc -l
+
+#copiar a la PC
+scp -P 1967 celiabc@132.248.15.41:/home/celiabc/BEGIOAM/Mapeo/podado_R.tar.gz D:/BEGIOAM/R/
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
