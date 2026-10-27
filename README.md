@@ -339,9 +339,9 @@ scp -P 1967 celiabc@132.248.15.41:/home/celiabc/BEGIOAM/Mapeo/podado_R.tar.gz D:
 
 
 
+revisar gráficos en R
 
-
-
+scp -P 1967 celiabc@132.248.15.41:/home/celiabc/BEGIOAM/Mapeo/metadata.tsv D:/BEGIOAM/R/
 
 
 
