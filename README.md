@@ -289,43 +289,115 @@ wc -l bam.list      # debe dar 10
 
 3. ANGSD: genotype likelihoods y SNPs
 
-Con 10 muestras, -minInd 8 (80%). Ajusta -setMinDepth y -setMaxDepth según la cobertura que obtuviste (por ejemplo, mínimo 10 y máximo ~2x la profundidad total media).
-
 angsd -bam bam.list -ref /home/celiabc/BEGIOAM/Reference/assembly3.fasta \
   -out chippurus \
   -GL 2 -doMajorMinor 1 -doMaf 1 -minMaf 0.05 -SNP_pval 1e-6 \
-  -doCounts 1 -doPost 1 -doGeno 3 -postCutoff 0.95 \
+  -doCounts 1 -doDepth 1 -dumpCounts 2 \
+  -setMinDepth 10 -setMaxDepth 50 \
   -minQ 20 -minMapQ 30 \
   -uniqueOnly 1 -remove_bads 1 -only_proper_pairs 1 \
-  -minInd 8 -doBcf 1 -P 20
+  -minInd 8 \
+  -doGlf 2 -doBcf 1 -doPost 1 -P 8
 
 
 
 scp -r -P 1967 celiabc@132.248.15.41:/home/celiabc/BEGIOAM/Mapeo/.tar.gz * D:/BEGIOAM/R
 
-
-
-
-##análisis después de la poda
-
-PCA y NAdmixture
+#POda
+Paso 1. Adelgazar: un SNP cada ≥ 1 kb
+bash
 cd /home/celiabc/BEGIOAM/Mapeo
-mkdir -p PCA_podado NGSadmix_podado
+zcat chippurus.mafs.gz | tail -n +2 | cut -f1,2 | \
+  awk '{ if ($1!=c || $2-last>=1000) {print; c=$1; last=$2} }' > thin1kb.pos
+wc -l thin1kb.pos        # 379,547
 
-2. Generar pruned.beagle.gz (si aún no lo hiciste)
+Paso 2. Extraer esos sitios del archivo de likelihoods
+bash
+awk 'NR==FNR{k[$1"_"$2]=1; next} FNR==1 || ($1 in k)' thin1kb.pos \
+  <(zcat chippurus.beagle.gz) | gzip > thin1kb.beagle.gz
+zcat thin1kb.beagle.gz | wc -l      # 379,548 (sitios + encabezado)
+
+Paso 3. Calcular el LD con ngsLD
+bash
+conda activate popgen
+NS=$(wc -l < thin1kb.pos)
+nohup ngsLD --geno thin1kb.beagle.gz --pos thin1kb.pos --probs \
+  --n_ind 10 --n_sites $NS --max_kb_dist 10 --min_maf 0.05 \
+  --n_threads 4 --out thin1kb.ld > ngsld.log 2>&1 &
+
+Paso 4. Podar con prune_graph
+bash
+export PATH=$HOME/.cargo/bin:$PATH
+prune_graph --in thin1kb.ld --header \
+  --weight r2 \
+  --filter "dist <= 10000 && r2 >= 0.2" \
+  --keep-heavy \
+  --out thin1kb.unlinked.id \
+  -n 4
+wc -l thin1kb.unlinked.id      # 129,048
+
+Paso 5. Crear el archivo de likelihoods podado
 bash
 sed 's/:/_/' thin1kb.unlinked.id > unlinked.markers
 awk 'NR==FNR{k[$1]=1; next} FNR==1 || ($1 in k)' unlinked.markers \
   <(zcat thin1kb.beagle.gz) | gzip > pruned.beagle.gz
-zcat pruned.beagle.gz | wc -l     # debe dar 129049
+zcat pruned.beagle.gz | wc -l        # 129,049
+
+Resumen de números
+Etapa	SNPs
+ANGSD (todos)	3,504,603
+Tras adelgazar (≥ 1 kb)	379,547
+Tras prune_graph (r² < 0.2, ≤ 10 kb)	129,048
+
+###Siguientes análisis
 
 PCA
+#sin control de ligamiento
+conda activate popgen
+cd /home/celiabc/BEGIOAM/Mapeo
+pcangsd -b chippurus.beagle.gz -o chippurus_pca -t 8
+mkdir -p PCA_podado
+pcangsd -b pruned.beagle.gz -o PCA_podado/pruned_pca -t 8 > PCA_podado/pcangsd.log 2>&1
+
+#con control de ligamiento
 conda activate popgen
 cd /home/celiabc/BEGIOAM/Mapeo
 pcangsd -b pruned.beagle.gz -o PCA_podado/pruned_pca -t 8 > PCA_podado/pcangsd.log 2>&1
 ls -lh PCA_podado/
 
+###Visualización en R
+library(ggplot2); library(ggrepel)
+setwd("D:/BEGIOAM/R")
 
+# Orden de bam.list (el mismo del .cov)
+inds <- c("MED_ADR-Med139-S72","MED_ADR-Med146-S35","MED_ADR-Med146-S88",
+          "MED_CHI-CH18C-S53","MED_CHI-CH9C-S41",
+          "ORA_DAK-DAK3-S46","ORA_DAK-DAK3-S50","ORA_DAK-DAK4-S62",
+          "ORA_DAK-DAK5-S74","ORA_DAK-DAK6-S86")
+pob <- factor(sub("-.*", "", inds),
+              levels = c("MED_ADR", "MED_CHI", "ORA_DAK"),
+              labels = c("Adriático", "Chipre", "Dakar"))
+cols <- c("Adriático" = "#4477AA", "Chipre" = "#EE6677", "Dakar" = "#228833")
+
+# Matriz de covarianza -> componentes principales
+cov_mat <- as.matrix(read.table("pruned_pca.cov"))   # sin poda: "chippurus_pca.cov"
+e   <- eigen(cov_mat)
+var <- round(100 * e$values / sum(e$values), 1)
+
+pca <- data.frame(ind = sub("^[A-Z_]+-", "", inds), pob = pob,
+                  PC1 = e$vectors[, 1], PC2 = e$vectors[, 2], PC3 = e$vectors[, 3])
+
+p <- ggplot(pca, aes(PC1, PC2, color = pob, label = ind)) +
+  geom_point(size = 4) +
+  geom_text_repel(size = 3, max.overlaps = Inf, show.legend = FALSE) +
+  scale_color_manual(values = cols) +
+  labs(title = "PCA con poda por LD (129,048 SNPs)",
+       x = paste0("PC1 (", var[1], "%)"),
+       y = paste0("PC2 (", var[2], "%)"), color = "Población") +
+  theme_bw()
+
+print(p)
+ggsave("PCA_con_poda.png", p, width = 7, height = 5, dpi = 300)
 NAdmix
 
 compactando archivos para pasarlos a la PC
