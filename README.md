@@ -410,79 +410,166 @@ tar tzf podado_R.tar.gz | wc -l
 scp -P 1967 celiabc@132.248.15.41:/home/celiabc/BEGIOAM/Mapeo/podado_R.tar.gz D:/BEGIOAM/R/
 
 
-
 revisar gráficos en R
 
 scp -P 1967 celiabc@132.248.15.41:/home/celiabc/BEGIOAM/Mapeo/metadata.tsv D:/BEGIOAM/R/
 
 
+###Siguiente análisis: ancestría con NGSadmix (SNPs podados)
+
+Después del PCA corriste NGSadmix sobre pruned.beagle.gz, y luego lo graficaste en R.
+
+Terminal (servidor, ambiente align)
+
+conda activate align
+cd /home/celiabc/BEGIOAM/Mapeo
+mkdir -p NGSadmix_podado
+
+nohup bash -c '
+for K in 1 2 3 4; do
+  for R in 1 2 3 4 5; do
+    NGSadmix -likes pruned.beagle.gz -K $K -P 8 -seed $R -o NGSadmix_podado/pruned_K${K}_r${R} > /dev/null
+  done
+done
+echo TERMINADO
+' > NGSadmix_podado/ngsadmix.log 2>&1 &
+
+-likes: entrada de likelihoods (beagle).
+-K 1..4: número de grupos ancestrales probados.
+-seed 1..5: 5 réplicas por K, porque el algoritmo puede caer en óptimos locales.
+Salidas: .qopt (ancestría por individuo), .log (verosimilitud), .fopt.gz.
 
 
+#Elegir K (verosimilitud) y ancestría
+
+grep -H "best like" NGSadmix_podado/pruned_K*_r*.log | sed 's#NGSadmix_podado/##' | sort -V
+paste metadata.tsv NGSadmix_podado/pruned_K2_r1.qopt | column -t
+
+#Empaquetar y copiar a tu PC:
+tar czf podado_R.tar.gz PCA_podado/*.cov NGSadmix_podado/*.qopt NGSadmix_podado/*.log
+# en la terminal de tu PC
+scp -P 1967 celiabc@132.248.15.41:/home/celiabc/BEGIOAM/Mapeo/podado_R.tar.gz D:/BEGIOAM/R/
 
 
+#En R
+setwd("D:/BEGIOAM/R")
+library(ggplot2); library(tidyr); library(dplyr)
+
+inds <- c("MED_ADR-Med139-S72","MED_ADR-Med146-S35","MED_ADR-Med146-S88",
+          "MED_CHI-CH18C-S53","MED_CHI-CH9C-S41",
+          "ORA_DAK-DAK3-S46","ORA_DAK-DAK3-S50","ORA_DAK-DAK4-S62",
+          "ORA_DAK-DAK5-S74","ORA_DAK-DAK6-S86")
+meta <- data.frame(muestra = sub("^[A-Z_]+-", "", inds), pob = sub("-.*", "", inds))
+
+# Verosimilitud por corrida
+logs <- list.files("NGSadmix_podado", pattern = "^pruned_K[0-9]+_r[0-9]+\\.log$", full.names = TRUE)
+get_ll <- function(f) {
+  l <- grep("best like", readLines(f), value = TRUE)
+  as.numeric(sub(".*best like=([-0-9.eE+]+).*", "\\1", l[length(l)]))
+}
+res <- data.frame(archivo = basename(logs),
+                  K = as.numeric(sub(".*_K([0-9]+)_r.*", "\\1", logs)),
+                  rep = as.numeric(sub(".*_r([0-9]+)\\.log", "\\1", logs)),
+                  loglike = sapply(logs, get_ll))
+print(res[order(res$K, res$rep), ], row.names = FALSE)
+print(res %>% group_by(K) %>% summarise(media = mean(loglike), maximo = max(loglike), sd = sd(loglike)))
+
+ggplot(res, aes(factor(K), loglike)) + geom_point(size = 3, alpha = .7) +
+  labs(x = "K", y = "Log-verosimilitud") + theme_bw()
+
+# Barras de ancestría (mejor réplica de cada K)
+colores <- c("#1b9e77", "#d95f02", "#7570b3", "#e7298a")
+graficar_K <- function(k) {
+  mejor <- res %>% filter(K == k) %>% slice_max(loglike, n = 1, with_ties = FALSE)
+  q <- read.table(file.path("NGSadmix_podado", sub("\\.log$", ".qopt", mejor$archivo)))
+  colnames(q) <- paste0("Grupo", 1:k)
+  d <- pivot_longer(cbind(meta, q), starts_with("Grupo"), names_to = "grupo", values_to = "prop")
+  ggplot(d, aes(muestra, prop, fill = grupo)) + geom_col(width = 1) +
+    facet_grid(~pob, scales = "free_x", space = "free_x") +
+    scale_fill_manual(values = colores) +
+    labs(x = NULL, y = "Ancestría", title = paste0("K = ", k)) +
+    theme_bw() + theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = .5))
+}
+graficar_K(2)
 
 
+#Terminal (servidor, ambiente align)
+
+Todo se lanzó con un script, FST_podado.sh:
+cd /home/celiabc/BEGIOAM/Mapeo
+cat > FST_podado.sh << 'EOF'
+#!/bin/bash
+source "$(conda info --base)/etc/profile.d/conda.sh"
+conda activate align
+cd /home/celiabc/BEGIOAM/Mapeo
+REF=/home/celiabc/BEGIOAM/Reference/assembly3.fasta
+FILT="-minQ 20 -minMapQ 30 -uniqueOnly 1 -remove_bads 1 -only_proper_pairs 1"
+mkdir -p FST_podado
+
+# 1) Sitios podados en formato ANGSD (contig<TAB>pos) e índice
+sed 's/:/\t/' thin1kb.unlinked.id | sort -k1,1 -k2,2n > FST_podado/pruned.sites
+angsd sites index FST_podado/pruned.sites
+[ -f MED.list ] || cat MED_ADR.list MED_CHI.list > MED.list
+
+# 2) SAF por población, solo en los sitios podados
+for P in MED ORA_DAK MED_ADR MED_CHI; do
+  N=$(wc -l < $P.list)
+  MI=$(( N > 2 ? N-1 : N ))
+  angsd -bam $P.list -ref $REF -anc $REF -sites FST_podado/pruned.sites \
+    -out FST_podado/saf_$P -GL 2 -doSaf 1 -doCounts 1 $FILT \
+    -minInd $MI -P 4 > FST_podado/saf_$P.log 2>&1 &
+done
+wait
+
+# 3) FST por pares
+cd FST_podado
+for PAIR in "MED ORA_DAK" "MED_ADR ORA_DAK" "MED_CHI ORA_DAK" "MED_ADR MED_CHI"; do
+  set -- $PAIR
+  realSFS saf_$1.saf.idx saf_$2.saf.idx -P 8 > $1_$2.sfs
+  realSFS fst index saf_$1.saf.idx saf_$2.saf.idx -sfs $1_$2.sfs -fstout fst_$1_$2
+  echo "== $1 vs $2"
+  realSFS fst stats fst_$1_$2.fst.idx
+  realSFS fst print fst_$1_$2.fst.idx > persite_$1_$2.txt
+done | tee fst_global.txt
+echo TERMINADO
+EOF
+chmod +x FST_podado.sh
+nohup ./FST_podado.sh > FST_podado.log 2>&1 &
+
+#Seguimiento de los resultados
+tail -n 2 FST_podado.log          # TERMINADO
+cat FST_podado/fst_global.txt     # FST no ponderado y ponderado
+
+#Empaquetar para copiar a la PC
+tar czf FST_podado_R.tar.gz FST_podado/fst_global.txt FST_podado/persite_*.txt
+#Copiar a la PC
+scp -P 1967 celiabc@132.248.15.41:/home/celiabc/BEGIOAM/Mapeo/FST_podado_R.tar.gz D:/BEGIOAM/R/
 
 
+#En R
+library(ggplot2)
+setwd("D:/BEGIOAM/R/FST_podado")
 
-####6. SNPs calling en ipyrad
+pares <- c("MED_ORA_DAK", "MED_ADR_ORA_DAK", "MED_CHI_ORA_DAK", "MED_ADR_MED_CHI")
 
-Crear la carpeta 04.ipyrad en /home/usuario/ Entrar a la carpeta y activar el ambiente conda para correr el programa.
+res <- lapply(pares, function(p) {
+  d <- read.table(paste0("persite_", p, ".txt"), col.names = c("chr", "pos", "A", "B"))
+  d <- d[d$B > 0, ]
+  est <- sum(d$A) / sum(d$B)                 # FST ponderado = sum(A)/sum(B)
+  set.seed(1)
+  bs <- replicate(1000, { i <- sample(nrow(d), replace = TRUE); sum(d$A[i]) / sum(d$B[i]) })
+  data.frame(par = p, nSNP = nrow(d), FST = round(est, 4),
+             IC_inf = round(quantile(bs, .025), 4),
+             IC_sup = round(quantile(bs, .975), 4))
+})
+tabla <- do.call(rbind, res); rownames(tabla) <- NULL
+print(tabla)
+write.csv(tabla, "tabla_FST_podado.csv", row.names = FALSE)
 
-conda activate ipyrad
+ggplot(tabla, aes(par, FST)) +
+  geom_point(size = 3) +
+  geom_errorbar(aes(ymin = IC_inf, ymax = IC_sup), width = .15) +
+  labs(x = NULL, y = "FST ponderado (IC 95%)") +
+  theme_bw() + theme(axis.text.x = element_text(angle = 30, hjust = 1))
+ggsave("FST_podado.png", width = 6, height = 4, dpi = 300)
 
-Crear el archivo de parámetros que emplea ipyrad. Colocar un nombre informativo que permita identificar la corrida. En este ejemplo U90M90
-
-ipyrad -n U90M90
-
-Como resultado se obtendrá el archivo params-U90M90.txt. Este debe ser editado con el comando nano. Los parámetros deben ser modificados según el criterio del investigador. Se requieren varias corridas para definir el set de parámetros que optimiza el ensamblaje, permitiendo obtener el mayor número de SNPs de alta calidad, con bajo porcentaje de datos faltantes. Para más información consulta el manual de ipyrad
-
-A continuación, algunos parámetros importantes a considerar:
-
-    [1] [project_dir]: Especificar directorio de los archivos de salida.
-    [4] [sorted_fastq_path]: Location of demultiplexed/sorted fastq files. /ruta/*trim.fastq.gz
-    [5] [assembly_method]: Assembly method (denovo, reference, etc)
-    [7] [datatype]: Datatype (see docs): rad, gbs, ddrad, etc. pair3rad
-    [8] [restriction_overhang] colocar el sitio de corte de mis enzimas: AATTC, CTAGC, CTAGA (para EcoR1, Xba y NheI)
-    [14] [clust_threshold]: Clustering threshold for de novo assembly. Colocar el umbral de similitud para la creación de clusters (en este ejemplo 0.90)
-    [21] [min_samples_locus]: Min # samples per locus for output. Depende del tamaño de muestra y cuanto missing data acaptaré (ej. si tengo 60 muestras y solo aceptaré el 90% de missing data, en esta casilla debo colocar 54)
-    [22] [max_SNPs_locus]: Número máximo de SNPs por locus. 0.1 = 10%
-    [27] [output_formats]: Output formats (see docs). Colocar * para que genere todos los formatos posibles.
-
-Una vez fijados los parámetros de la corrida modificando el params-U90M90, ya se puede correr ipyrad
-
-nohup ipyrad -p params-U90M90.txt -s 1234567 -c 24 -f --MPI > output.txt &
-
-Dependiendo de la catidad de datos, la corrida puede ser lenta. Recomiendo utilizar nohup para ir monitoreándola.
-
-Una vez culminada la corrida, verificar los resultados guardados en la carpeta U90M90_outfiles, archivo U90M90_stats.txt. El archivo U90M90.vcf va a contener la matriz de SNPs.
-7. Filtrado adicional con VCFtools
-
-Crear la carpeta VCFtools en /home/usuario
-
-Las opciones de filtrado en VCFtools pueden ser visualizadas con el comando man vcftools
-
-Dependiendo del objetivo del estudio, se pueden hacer varias corridas. En este ejemplo, haremos análisis poblacionales clásicos (estructura y diversidad genética) y análisis de SNPs candidatos a selección. Por lo tanto, se construirán 2 sets de datos.
-
-set de datos 1, análsis de selección
-
-Objetivo: eliminar alelos con frecuencia menor al 4%, retener loci bialelélicos con profundidad mayor a 10 y máximo 10% de missing data.
-
-vcftools --vcf U90M90.vcf --maf 0.04 --min-meanDP 10 --min-alleles 2 --max-alleles 2 --max-missing 0.9 --recode --out U90M90_maf0.04_DP10_MD0.9
-
-set de datos 2, análisis de estructura y diversidad
-
-Objetivo: A la salida anterior, aplicarle el filtro de desequilibrio de ligamiento.
-
-vcftools --vcf U90M90_maf0.04_DP10_MD0.9.vcf --thin 1000 --recode --out U90M90_maf0.04_DP10_DL.vcf
-
-Para ambos sets de datos, visualizar el archivo.log para ver cuantos sitios se mantienen luego del filtrado.
-
-En este punto, ya están listos los sets de datos a emplear en análisis de estructura, diversidad y selección. Revisar el nombre de las muestras en los vcf resultantes y modificarlos si es requerido.
-Descargar el vcf
-
-En la terminal de mi compu scp -r -P 1967 massiel.alfonsoglez@132.248.15.41:/home/massiel.alfonsoglez/curso/04.ipyrad/U90M90_outfiles/U90M90_maf0.04_DP10_MD0.9.vcf /home/alex-dll/Escritorio
-
-
-
- 
