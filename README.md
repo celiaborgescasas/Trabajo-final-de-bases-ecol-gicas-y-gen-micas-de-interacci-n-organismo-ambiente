@@ -7,13 +7,19 @@
 Objetivo general:
 Evaluar la estructura y diferenciación genética de las poblaciones de dorado (Coryphaena hippurus) del mar Mediterráneo y el océano Atlántico, así como modelar su distribución potencial actual y futura bajo un escenario de cambio climático SSP5-8.5.
 
-Objetivos específicos
+Objetivos específicos:
 1. Evaluar la estructura genética de Coryphaena hippurus del mar Mediterráneo y el océano Atlántico, con el propósito de determinar el grado de diferenciación genética entre ambas regiones.
 2. Analizar la estructura genética intrarregional de los organismos del mar Mediterráneo para determinar la existencia de posibles subdivisiones o patrones de diferenciación genética entre las localidades de muestreo.
 3. Cuantificar el grado de diferenciación genética entre los grupos poblacionales identificados mediante estimadores de diferenciación genética.
 4. Modelar la distribución potencial actual de Coryphaena hippurus en el área de estudio y evaluar los cambios en su distribución bajo el escenario de cambio climático SSP5-8.5.
 
+### Hipótesis:
 
+H1: Existe estructura genética entre ambas cuencas, debido a la barrera del estrecho de Gibraltar y a diferencias ambientales (temperatura y salinidad).
+H2: Existe diferenciación entre las localidades mediterráneas (por ejemplo, entre la cuenca occidental/Adriático y la oriental/Chipre).
+H3: El calentamiento y los cambios en salinidad y productividad modificarán la idoneidad ambiental: se espera ganancia de hábitat hacia latitudes altas (por ejemplo, el Mediterráneo norte y el Atlántico nororiental).
+
+## Pipeline para Análisis de Datos
 
 
 
