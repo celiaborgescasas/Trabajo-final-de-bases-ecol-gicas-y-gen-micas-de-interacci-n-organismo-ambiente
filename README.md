@@ -421,73 +421,98 @@ con control de ligamiento
 ```pcangsd -b pruned.beagle.gz -o PCA_podado/pruned_pca -t 8 > PCA_podado/pcangsd.log 2>&1```
 ```ls -lh PCA_podado/```
 
-## 6. Visualización en R
+### 5.1 Visualización en R
 
-Cargar paquetes y establecer directorio de trabajo
+-Cargar paquetes y establecer directorio de trabajo
 
 library(ggplot2)
 library(ggrepel)
 
 setwd("D:/BEGIOAM/R")
 
-
-
-# Orden de bam.list (el mismo del .cov)
+-Definir individuos y poblaciones
 inds <- c("MED_ADR-Med139-S72","MED_ADR-Med146-S35","MED_ADR-Med146-S88",
           "MED_CHI-CH18C-S53","MED_CHI-CH9C-S41",
           "ORA_DAK-DAK3-S46","ORA_DAK-DAK3-S50","ORA_DAK-DAK4-S62",
           "ORA_DAK-DAK5-S74","ORA_DAK-DAK6-S86")
+
 pob <- factor(sub("-.*", "", inds),
               levels = c("MED_ADR", "MED_CHI", "ORA_DAK"),
               labels = c("Adriático", "Chipre", "Dakar"))
-cols <- c("Adriático" = "#4477AA", "Chipre" = "#EE6677", "Dakar" = "#228833")
 
-# Matriz de covarianza -> componentes principales
-cov_mat <- as.matrix(read.table("pruned_pca.cov"))   # sin poda: "chippurus_pca.cov"
-e   <- eigen(cov_mat)
+cols <- c("Adriático" = "#4477AA",
+          "Chipre" = "#EE6677",
+          "Dakar" = "#228833")
+
+
+-Calcular los componentes principales
+
+cov_mat <- as.matrix(read.table("pruned_pca.cov"))
+
+e <- eigen(cov_mat)
+
 var <- round(100 * e$values / sum(e$values), 1)
 
-pca <- data.frame(ind = sub("^[A-Z_]+-", "", inds), pob = pob,
-                  PC1 = e$vectors[, 1], PC2 = e$vectors[, 2], PC3 = e$vectors[, 3])
+-Construir la tabla de coordenadas del PCA
+
+pca <- data.frame(
+  ind = sub("^[A-Z_]+-", "", inds),
+  pob = pob,
+  PC1 = e$vectors[, 1],
+  PC2 = e$vectors[, 2],
+  PC3 = e$vectors[, 3]
+)
+
+-Generar y guardar el gráfico
 
 p <- ggplot(pca, aes(PC1, PC2, color = pob, label = ind)) +
   geom_point(size = 4) +
   geom_text_repel(size = 3, max.overlaps = Inf, show.legend = FALSE) +
   scale_color_manual(values = cols) +
-  labs(title = "PCA con poda por LD (129,048 SNPs)",
-       x = paste0("PC1 (", var[1], "%)"),
-       y = paste0("PC2 (", var[2], "%)"), color = "Población") +
+  labs(
+    title = "PCA con poda por LD (129,048 SNPs)",
+    x = paste0("PC1 (", var[1], "%)"),
+    y = paste0("PC2 (", var[2], "%)"),
+    color = "Población"
+  ) +
   theme_bw()
 
 print(p)
+
 ggsave("PCA_con_poda.png", p, width = 7, height = 5, dpi = 300)
-NAdmix
+
+
+
 
 compactando archivos para pasarlos a la PC
 
-cd /home/celiabc/BEGIOAM/Mapeo
-tar czf podado_R.tar.gz PCA_podado/*.cov NGSadmix_podado/*.qopt NGSadmix_podado/*.log
-tar tzf podado_R.tar.gz | wc -l
+```cd /home/celiabc/BEGIOAM/Mapeo```
+```tar czf podado_R.tar.gz PCA_podado/*.cov NGSadmix_podado/*.qopt NGSadmix_podado/*.log```
+```tar tzf podado_R.tar.gz | wc -l```
 
-#copiar a la PC
-scp -P 1967 celiabc@132.248.15.41:/home/celiabc/BEGIOAM/Mapeo/podado_R.tar.gz D:/BEGIOAM/R/
+Copiar a la PC
 
-
-revisar gráficos en R
-
-scp -P 1967 celiabc@132.248.15.41:/home/celiabc/BEGIOAM/Mapeo/metadata.tsv D:/BEGIOAM/R/
+```scp -P 1967 celiabc@132.248.15.41:/home/celiabc/BEGIOAM/Mapeo/podado_R.tar.gz D:/BEGIOAM/R/```
 
 
-###Siguiente análisis: ancestría con NGSadmix (SNPs podados)
+Revisar gráficos en R
 
-Después del PCA corriste NGSadmix sobre pruned.beagle.gz, y luego lo graficaste en R.
+```scp -P 1967 celiabc@132.248.15.41:/home/celiabc/BEGIOAM/Mapeo/metadata.tsv D:/BEGIOAM/R/```
+
+
+## 6.NAdmix
+
+Después del PCA se corrió NGSadmix sobre pruned.beagle.gz, y luego se  graficó en R.
 
 Terminal (servidor, ambiente align)
 
-conda activate align
-cd /home/celiabc/BEGIOAM/Mapeo
-mkdir -p NGSadmix_podado
+```conda activate align```
+```cd /home/celiabc/BEGIOAM/Mapeo```
+```mkdir -p NGSadmix_podado```
 
+-Ejecutar NGSadmix para diferentes valores de K
+
+```
 nohup bash -c '
 for K in 1 2 3 4; do
   for R in 1 2 3 4 5; do
@@ -496,85 +521,141 @@ for K in 1 2 3 4; do
 done
 echo TERMINADO
 ' > NGSadmix_podado/ngsadmix.log 2>&1 &
+```
 
--likes: entrada de likelihoods (beagle).
--K 1..4: número de grupos ancestrales probados.
--seed 1..5: 5 réplicas por K, porque el algoritmo puede caer en óptimos locales.
-Salidas: .qopt (ancestría por individuo), .log (verosimilitud), .fopt.gz.
+-Descripción de los parámetros
 
-
-#Elegir K (verosimilitud) y ancestría
-
-grep -H "best like" NGSadmix_podado/pruned_K*_r*.log | sed 's#NGSadmix_podado/##' | sort -V
-paste metadata.tsv NGSadmix_podado/pruned_K2_r1.qopt | column -t
-
-#Empaquetar y copiar a tu PC:
-tar czf podado_R.tar.gz PCA_podado/*.cov NGSadmix_podado/*.qopt NGSadmix_podado/*.log
-# en la terminal de tu PC
-scp -P 1967 celiabc@132.248.15.41:/home/celiabc/BEGIOAM/Mapeo/podado_R.tar.gz D:/BEGIOAM/R/
+Parámetro	            Función
+nohup	                Permite que el proceso continúe ejecutándose aunque se cierre la sesión de terminal.
+-likes	                Especifica el archivo de likelihoods genotípicos en formato Beagle.
+-K 1 2 3 4	            Evalúa entre 1 y 4 grupos ancestrales.
+-P 8	                Utiliza 8 procesadores.
+-seed	                Establece la semilla aleatoria para cada réplica.
+-o	                    Define el prefijo de los archivos de salida.
+> /dev/null	            Redirige la salida estándar para evitar que se imprima en pantalla.
+2>&1	                Redirige los mensajes de error al archivo de registro.
 
 
-#En R
+-Evaluar la verosimilitud y seleccionar K
+
+```grep -H "best like" NGSadmix_podado/pruned_K*_r*.log | sed 's#NGSadmix_podado/##' | sort -V```
+
+-Inspeccionar las proporciones de ancestría de los individuos con K = 2
+
+```paste metadata.tsv NGSadmix_podado/pruned_K2_r1.qopt | column -t```
+
+-Empaquetar los resultados
+
+```tar czf podado_R.tar.gz PCA_podado/*.cov NGSadmix_podado/*.qopt NGSadmix_podado/*.log```
+
+-Transferir los resultados a la computadora
+
+```scp -P 1967 celiabc@132.248.15.41:/home/celiabc/BEGIOAM/Mapeo/podado_R.tar.gz D:/BEGIOAM/R/```
+
+### 6.1 Visualización en R
+
+-Preparación del entorno
+
 setwd("D:/BEGIOAM/R")
-library(ggplot2); library(tidyr); library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(dplyr)
 
-inds <- c("MED_ADR-Med139-S72","MED_ADR-Med146-S35","MED_ADR-Med146-S88",
-          "MED_CHI-CH18C-S53","MED_CHI-CH9C-S41",
-          "ORA_DAK-DAK3-S46","ORA_DAK-DAK3-S50","ORA_DAK-DAK4-S62",
-          "ORA_DAK-DAK5-S74","ORA_DAK-DAK6-S86")
-meta <- data.frame(muestra = sub("^[A-Z_]+-", "", inds), pob = sub("-.*", "", inds))
+-Identificación de individuos y poblaciones
 
-# Verosimilitud por corrida
-logs <- list.files("NGSadmix_podado", pattern = "^pruned_K[0-9]+_r[0-9]+\\.log$", full.names = TRUE)
+inds <- c(...)
+meta <- data.frame(
+  muestra = sub("^[A-Z_]+-", "", inds),
+  pob = sub("-.*", "", inds)
+)
+
+-Extracción de las verosimilitudes
+
+logs <- list.files(
+  "NGSadmix_podado",
+  pattern = "^pruned_K[0-9]+_r[0-9]+\\.log$",
+  full.names = TRUE
+)
+
+
 get_ll <- function(f) {
   l <- grep("best like", readLines(f), value = TRUE)
   as.numeric(sub(".*best like=([-0-9.eE+]+).*", "\\1", l[length(l)]))
 }
-res <- data.frame(archivo = basename(logs),
-                  K = as.numeric(sub(".*_K([0-9]+)_r.*", "\\1", logs)),
-                  rep = as.numeric(sub(".*_r([0-9]+)\\.log", "\\1", logs)),
-                  loglike = sapply(logs, get_ll))
-print(res[order(res$K, res$rep), ], row.names = FALSE)
-print(res %>% group_by(K) %>% summarise(media = mean(loglike), maximo = max(loglike), sd = sd(loglike)))
 
-ggplot(res, aes(factor(K), loglike)) + geom_point(size = 3, alpha = .7) +
-  labs(x = "K", y = "Log-verosimilitud") + theme_bw()
+-Comparación de las corridas
 
-# Barras de ancestría (mejor réplica de cada K)
-colores <- c("#1b9e77", "#d95f02", "#7570b3", "#e7298a")
+res <- data.frame(
+  archivo = basename(logs),
+  K = as.numeric(sub(".*_K([0-9]+)_r.*", "\\1", logs)),
+  rep = as.numeric(sub(".*_r([0-9]+)\\.log", "\\1", logs)),
+  loglike = sapply(logs, get_ll)
+)
+
+print(res %>% group_by(K) %>%
+  summarise(
+    media = mean(loglike),
+    maximo = max(loglike),
+    sd = sd(loglike)
+  ))
+
+-Gráfica de log-verosimilitud
+
+ggplot(res, aes(factor(K), loglike)) +
+  geom_point(size = 3, alpha = .7) +
+  labs(x = "K", y = "Log-verosimilitud") +
+  theme_bw()
+ 
+ -Gráficas de ancestría genética
+ 
 graficar_K <- function(k) {
-  mejor <- res %>% filter(K == k) %>% slice_max(loglike, n = 1, with_ties = FALSE)
-  q <- read.table(file.path("NGSadmix_podado", sub("\\.log$", ".qopt", mejor$archivo)))
-  colnames(q) <- paste0("Grupo", 1:k)
-  d <- pivot_longer(cbind(meta, q), starts_with("Grupo"), names_to = "grupo", values_to = "prop")
-  ggplot(d, aes(muestra, prop, fill = grupo)) + geom_col(width = 1) +
-    facet_grid(~pob, scales = "free_x", space = "free_x") +
-    scale_fill_manual(values = colores) +
-    labs(x = NULL, y = "Ancestría", title = paste0("K = ", k)) +
-    theme_bw() + theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = .5))
-}
+  mejor <- res %>%
+    filter(K == k) %>%
+    slice_max(loglike, n = 1, with_ties = FALSE)
+
+-Selecciona la réplica con mayor log-verosimilitud para cada K
+q <- read.table(
+  file.path("NGSadmix_podado",
+  sub("\\.log$", ".qopt", mejor$archivo))
+)
+
+-Gráfica
+
+ggplot(d, aes(muestra, prop, fill = grupo)) +
+  geom_col(width = 1) +
+  facet_grid(~pob, scales = "free_x", space = "free_x")
+
+-Ejecuta la gráfica
+
 graficar_K(2)
 
+-Genera la gráfica para K = 2
+graficar_K(1)
+graficar_K(3)
+graficar_K(4)
 
-#Terminal (servidor, ambiente align)
+## 7. Análisis de FST
 
-Todo se lanzó con un script, FST_podado.sh:
-cd /home/celiabc/BEGIOAM/Mapeo
-cat > FST_podado.sh << 'EOF'
-#!/bin/bash
-source "$(conda info --base)/etc/profile.d/conda.sh"
-conda activate align
-cd /home/celiabc/BEGIOAM/Mapeo
-REF=/home/celiabc/BEGIOAM/Reference/assembly3.fasta
-FILT="-minQ 20 -minMapQ 30 -uniqueOnly 1 -remove_bads 1 -only_proper_pairs 1"
-mkdir -p FST_podado
+-Terminal (servidor, ambiente align)
+-Todo se lanzó con un script, FST_podado.sh:
 
-# 1) Sitios podados en formato ANGSD (contig<TAB>pos) e índice
-sed 's/:/\t/' thin1kb.unlinked.id | sort -k1,1 -k2,2n > FST_podado/pruned.sites
-angsd sites index FST_podado/pruned.sites
-[ -f MED.list ] || cat MED_ADR.list MED_CHI.list > MED.list
+```cd /home/celiabc/BEGIOAM/Mapeo```
+```cat > FST_podado.sh << 'EOF'```
+```#!/bin/bash```
+```source "$(conda info --base)/etc/profile.d/conda.sh"```
+```conda activate align```
+```cd /home/celiabc/BEGIOAM/Mapeo```
+```REF=/home/celiabc/BEGIOAM/Reference/assembly3.fasta```
+```FILT="-minQ 20 -minMapQ 30 -uniqueOnly 1 -remove_bads 1 -only_proper_pairs 1"```
+```mkdir -p FST_podado```
 
-# 2) SAF por población, solo en los sitios podados
+1) Sitios podados en formato ANGSD (contig<TAB>pos) e índice
+```sed 's/:/\t/' thin1kb.unlinked.id | sort -k1,1 -k2,2n > FST_podado/pruned.sites```
+```angsd sites index FST_podado/pruned.sites```
+```[ -f MED.list ] || cat MED_ADR.list MED_CHI.list > MED.list```
+
+2) SAF por población, solo en los sitios podados
+```
 for P in MED ORA_DAK MED_ADR MED_CHI; do
   N=$(wc -l < $P.list)
   MI=$(( N > 2 ? N-1 : N ))
@@ -583,9 +664,11 @@ for P in MED ORA_DAK MED_ADR MED_CHI; do
     -minInd $MI -P 4 > FST_podado/saf_$P.log 2>&1 &
 done
 wait
+```
 
-# 3) FST por pares
-cd FST_podado
+3) FST por pares
+```cd FST_podado```
+```
 for PAIR in "MED ORA_DAK" "MED_ADR ORA_DAK" "MED_CHI ORA_DAK" "MED_ADR MED_CHI"; do
   set -- $PAIR
   realSFS saf_$1.saf.idx saf_$2.saf.idx -P 8 > $1_$2.sfs
@@ -598,41 +681,78 @@ echo TERMINADO
 EOF
 chmod +x FST_podado.sh
 nohup ./FST_podado.sh > FST_podado.log 2>&1 &
+```
 
-#Seguimiento de los resultados
-tail -n 2 FST_podado.log          # TERMINADO
-cat FST_podado/fst_global.txt     # FST no ponderado y ponderado
+-Seguimiento de los resultados
+```tail -n 2 FST_podado.log```          # TERMINADO
+```cat FST_podado/fst_global.txt```     # FST no ponderado y ponderado
 
-#Empaquetar para copiar a la PC
-tar czf FST_podado_R.tar.gz FST_podado/fst_global.txt FST_podado/persite_*.txt
-#Copiar a la PC
-scp -P 1967 celiabc@132.248.15.41:/home/celiabc/BEGIOAM/Mapeo/FST_podado_R.tar.gz D:/BEGIOAM/R/
+-Empaquetar para copiar a la PC
+```tar czf FST_podado_R.tar.gz FST_podado/fst_global.txt FST_podado/persite_*.txt```
+-Copiar a la PC
+```scp -P 1967 celiabc@132.248.15.41:/home/celiabc/BEGIOAM/Mapeo/FST_podado_R.tar.gz D:/BEGIOAM/R/```
 
+### 7.1 Visualización en R
 
-#En R
+-Preparación del entorno
+
 library(ggplot2)
 setwd("D:/BEGIOAM/R/FST_podado")
 
-pares <- c("MED_ORA_DAK", "MED_ADR_ORA_DAK", "MED_CHI_ORA_DAK", "MED_ADR_MED_CHI")
+-Definición de las comparaciones poblacionales
+
+pares <- c(
+  "MED_ORA_DAK",
+  "MED_ADR_ORA_DAK",
+  "MED_CHI_ORA_DAK",
+  "MED_ADR_MED_CHI"
+)
+
+-Lectura y filtrado de los archivos
 
 res <- lapply(pares, function(p) {
-  d <- read.table(paste0("persite_", p, ".txt"), col.names = c("chr", "pos", "A", "B"))
+  d <- read.table(
+    paste0("persite_", p, ".txt"),
+    col.names = c("chr", "pos", "A", "B")
+  )
   d <- d[d$B > 0, ]
-  est <- sum(d$A) / sum(d$B)                 # FST ponderado = sum(A)/sum(B)
-  set.seed(1)
-  bs <- replicate(1000, { i <- sample(nrow(d), replace = TRUE); sum(d$A[i]) / sum(d$B[i]) })
-  data.frame(par = p, nSNP = nrow(d), FST = round(est, 4),
-             IC_inf = round(quantile(bs, .025), 4),
-             IC_sup = round(quantile(bs, .975), 4))
+
+  -Cálculo del FST ponderado
+
+  est <- sum(d$A) / sum(d$B)
+
+-Bootstrap: estimación de intervalos de confianza
+
+set.seed(1)
+
+bs <- replicate(1000, {
+  i <- sample(nrow(d), replace = TRUE)
+  sum(d$A[i]) / sum(d$B[i])
 })
-tabla <- do.call(rbind, res); rownames(tabla) <- NULL
+
+IC_inf = round(quantile(bs, .025), 4)
+IC_sup = round(quantile(bs, .975), 4)
+
+-Construcción de la tabla de resultados
+
+data.frame(
+  par = p,
+  nSNP = nrow(d),
+  FST = round(est, 4),
+  IC_inf = round(quantile(bs, .025), 4),
+  IC_sup = round(quantile(bs, .975), 4)
+)
+
+tabla <- do.call(rbind, res)
+rownames(tabla) <- NULL
 print(tabla)
 write.csv(tabla, "tabla_FST_podado.csv", row.names = FALSE)
 
+-Representación gráfica
 ggplot(tabla, aes(par, FST)) +
   geom_point(size = 3) +
   geom_errorbar(aes(ymin = IC_inf, ymax = IC_sup), width = .15) +
   labs(x = NULL, y = "FST ponderado (IC 95%)") +
-  theme_bw() + theme(axis.text.x = element_text(angle = 30, hjust = 1))
-ggsave("FST_podado.png", width = 6, height = 4, dpi = 300)
+  theme_bw()
 
+  ggsave("FST_podado.png", width = 6, height = 4, dpi = 300)
