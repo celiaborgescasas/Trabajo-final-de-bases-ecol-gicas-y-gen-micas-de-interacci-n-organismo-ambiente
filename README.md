@@ -290,54 +290,56 @@ done
 ```mv *.zip /home/celiabc/BEGIOAM/Secuencias_limipieza_04/```
 
 
-####Ensamblar contra el genoma de referencia
+## 2. Ensamblar contra el genoma de referencia
+
 copiar el genoma de referencia 
 
-scp -r -P 1967 D:/BEGIOAM/genomev3/* celiabc@132.248.15.41:/home/celiabc/BEGIOAM/Reference
-verificar la cantidad de secuencias creadas con ls ls | wc -l 
+```scp -r -P 1967 D:/BEGIOAM/genomev3/* celiabc@132.248.15.41:/home/celiabc/BEGIOAM/Reference```
+verificar la cantidad de secuencias creadas con: ```ls ls | wc -l``` 
 -Indexar el genoma de referencia
-# Crear un ambiente con todo lo necesario
-conda create -n align -c conda-forge -c bioconda bwa-mem2 samtools fastp fastqc angsd bcftools
-conda activate align
 
-# Verificar
-bwa-mem2 version
+Crear un ambiente con todo lo necesario
+```conda create -n align -c conda-forge -c bioconda bwa-mem2 samtools fastp fastqc angsd bcftools ```
+```conda activate align```
 
-1- Se indexa
+Verificar
+```bwa-mem2 version```
 
-cd /home/celiabc/BEGIOAM/Reference
-bwa index assembly3.fasta
-ls assembly3.fasta*
+Se indexa
 
-2-Se alinea
+```cd /home/celiabc/BEGIOAM/Reference```
+```bwa index assembly3.fasta```
+```ls assembly3.fasta*```
 
-cd /home/celiabc/BEGIOAM/Secuencias_limipieza_04
-conda activate align
-nohup bash alinear.sh > alinear.log 2>&1 &
-sleep 60; tail -n 5 alinear.log
+Se alinea
 
-3-Se revisa la calidad del mapeo
+```cd /home/celiabc/BEGIOAM/Secuencias_limipieza_04```
+```conda activate align```
+```nohup bash alinear.sh > alinear.log 2>&1 &```
+```sleep 60; tail -n 5 alinear.log```
 
-conda activate align
-cd /home/celiabc/BEGIOAM/Mapeo
+Se revisa la calidad del mapeo
 
-for B in *.dedup.bam; do
+```conda activate align```
+```cd /home/celiabc/BEGIOAM/Mapeo```
+
+```for B in *.dedup.bam; do
   echo "== $B"
   samtools flagstat $B | grep -E "mapped \(|properly paired"
   samtools coverage $B | awk 'NR>1{l+=$3; c+=$7*$3} END{printf "Cobertura media: %.2fx\n", c/l}'
 done
-
+```
 Busca >90% de lecturas mapeadas y una cobertura similar entre muestras. Si alguna muestra es muy baja (por ejemplo <1x o <70% mapeado), considera excluirla.
 
 
 
-4-Buscar la lista de BAM
-ls $PWD/*.dedup.bam > bam.list
-wc -l bam.list      # debe dar 10
+Buscar la lista de BAM
+```ls $PWD/*.dedup.bam > bam.list```
+```wc -l bam.list```      # debe dar 10
 
-3. ANGSD: genotype likelihoods y SNPs
+## 3. ANGSD: genotype likelihoods y SNPs
 
-angsd -bam bam.list -ref /home/celiabc/BEGIOAM/Reference/assembly3.fasta \
+```angsd -bam bam.list -ref /home/celiabc/BEGIOAM/Reference/assembly3.fasta \
   -out chippurus \
   -GL 2 -doMajorMinor 1 -doMaf 1 -minMaf 0.05 -SNP_pval 1e-6 \
   -doCounts 1 -doDepth 1 -dumpCounts 2 \
@@ -346,35 +348,38 @@ angsd -bam bam.list -ref /home/celiabc/BEGIOAM/Reference/assembly3.fasta \
   -uniqueOnly 1 -remove_bads 1 -only_proper_pairs 1 \
   -minInd 8 \
   -doGlf 2 -doBcf 1 -doPost 1 -P 8
+```
 
 
+```scp -r -P 1967 celiabc@132.248.15.41:/home/celiabc/BEGIOAM/Mapeo/.tar.gz * D:/BEGIOAM/R```
 
-scp -r -P 1967 celiabc@132.248.15.41:/home/celiabc/BEGIOAM/Mapeo/.tar.gz * D:/BEGIOAM/R
+## 4. Eliminar desequilibrio de ligamiento
 
-#POda
-Paso 1. Adelgazar: un SNP cada ≥ 1 kb
-bash
+Adelgazar: un SNP cada ≥ 1 kb
+```
 cd /home/celiabc/BEGIOAM/Mapeo
 zcat chippurus.mafs.gz | tail -n +2 | cut -f1,2 | \
   awk '{ if ($1!=c || $2-last>=1000) {print; c=$1; last=$2} }' > thin1kb.pos
 wc -l thin1kb.pos        # 379,547
+```
+Extraer esos sitios del archivo de likelihoods
 
-Paso 2. Extraer esos sitios del archivo de likelihoods
-bash
+```
 awk 'NR==FNR{k[$1"_"$2]=1; next} FNR==1 || ($1 in k)' thin1kb.pos \
   <(zcat chippurus.beagle.gz) | gzip > thin1kb.beagle.gz
 zcat thin1kb.beagle.gz | wc -l      # 379,548 (sitios + encabezado)
+```
+Calcular el LD con ngsLD
 
-Paso 3. Calcular el LD con ngsLD
-bash
+```
 conda activate popgen
 NS=$(wc -l < thin1kb.pos)
 nohup ngsLD --geno thin1kb.beagle.gz --pos thin1kb.pos --probs \
   --n_ind 10 --n_sites $NS --max_kb_dist 10 --min_maf 0.05 \
   --n_threads 4 --out thin1kb.ld > ngsld.log 2>&1 &
-
-Paso 4. Podar con prune_graph
-bash
+```
+Podar con prune_graph
+```
 export PATH=$HOME/.cargo/bin:$PATH
 prune_graph --in thin1kb.ld --header \
   --weight r2 \
@@ -383,13 +388,14 @@ prune_graph --in thin1kb.ld --header \
   --out thin1kb.unlinked.id \
   -n 4
 wc -l thin1kb.unlinked.id      # 129,048
-
-Paso 5. Crear el archivo de likelihoods podado
-bash
+```
+Crear el archivo de likelihoods podado
+```
 sed 's/:/_/' thin1kb.unlinked.id > unlinked.markers
 awk 'NR==FNR{k[$1]=1; next} FNR==1 || ($1 in k)' unlinked.markers \
   <(zcat thin1kb.beagle.gz) | gzip > pruned.beagle.gz
 zcat pruned.beagle.gz | wc -l        # 129,049
+```
 
 Resumen de números
 Etapa	SNPs
@@ -397,25 +403,34 @@ ANGSD (todos)	3,504,603
 Tras adelgazar (≥ 1 kb)	379,547
 Tras prune_graph (r² < 0.2, ≤ 10 kb)	129,048
 
-###Siguientes análisis
 
-PCA
-#sin control de ligamiento
-conda activate popgen
-cd /home/celiabc/BEGIOAM/Mapeo
-pcangsd -b chippurus.beagle.gz -o chippurus_pca -t 8
-mkdir -p PCA_podado
-pcangsd -b pruned.beagle.gz -o PCA_podado/pruned_pca -t 8 > PCA_podado/pcangsd.log 2>&1
+## 5. PCA
 
-#con control de ligamiento
-conda activate popgen
-cd /home/celiabc/BEGIOAM/Mapeo
-pcangsd -b pruned.beagle.gz -o PCA_podado/pruned_pca -t 8 > PCA_podado/pcangsd.log 2>&1
-ls -lh PCA_podado/
+sin control de ligamiento
 
-###Visualización en R
-library(ggplot2); library(ggrepel)
+```conda activate popgen```
+```cd /home/celiabc/BEGIOAM/Mapeo```
+```pcangsd -b chippurus.beagle.gz -o chippurus_pca -t 8```
+```mkdir -p PCA_podado```
+```pcangsd -b pruned.beagle.gz -o PCA_podado/pruned_pca -t 8 > PCA_podado/pcangsd.log 2>&1```
+
+con control de ligamiento
+
+```conda activate popgen```
+```cd /home/celiabc/BEGIOAM/Mapeo```
+```pcangsd -b pruned.beagle.gz -o PCA_podado/pruned_pca -t 8 > PCA_podado/pcangsd.log 2>&1```
+```ls -lh PCA_podado/```
+
+## 6. Visualización en R
+
+Cargar paquetes y establecer directorio de trabajo
+
+library(ggplot2)
+library(ggrepel)
+
 setwd("D:/BEGIOAM/R")
+
+
 
 # Orden de bam.list (el mismo del .cov)
 inds <- c("MED_ADR-Med139-S72","MED_ADR-Med146-S35","MED_ADR-Med146-S88",
