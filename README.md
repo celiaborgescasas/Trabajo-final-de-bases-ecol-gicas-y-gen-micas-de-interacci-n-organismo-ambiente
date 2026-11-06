@@ -16,15 +16,18 @@ Objetivos específicos:
 ### Hipótesis:
 
 H1: Existe estructura genética entre ambas cuencas, debido a la barrera del estrecho de Gibraltar y a diferencias ambientales (temperatura y salinidad).
+
 H2: Existe diferenciación entre las localidades mediterráneas (por ejemplo, entre la cuenca occidental/Adriático y la oriental/Chipre).
+
 H3: El calentamiento y los cambios en salinidad y productividad modificarán la idoneidad ambiental: se espera ganancia de hábitat hacia latitudes altas (por ejemplo, el Mediterráneo norte y el Atlántico nororiental).
 
 ## Pipeline para Análisis de Datos
 
+## 1. Preparación de los datos
 
+Acceso al servidor del lab de genética
 
-#Pasos #Acceso al servidor del lab de genética
-ssh celiabc@132.248.15.41 -p 1967 -o ServerAliveInterval=60
+```ssh celiabc@132.248.15.41 -p 1967 -o ServerAliveInterval=60```
 
 #######Copiar las secuencias crudas desde la compu al servidor#####
 1. Subir archivos .fastq.gz al servidor
