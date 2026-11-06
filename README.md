@@ -1,4 +1,10 @@
-# Trabajo final-de-bases-ecol-gicas-y-gen-micas-de-interacci-n-organismo-ambiente
+# Trabajo final de Bases Ecológicas y Genómicas de Interacción Organismo-Ambiente
+
+## Título: "Estructura genética y modelos de idoneidad ambiental de Coryphaena hippurus en el océano Atlántico oriental y el mar Mediterráneo”
+
+
+
+src="https://github.com/user-attachments/assets/14c01fb1-a08d-454f-b105-67c0797950fc" />
 
 #Pasos #Acceso al servidor del lab de genética
 ssh celiabc@132.248.15.41 -p 1967 -o ServerAliveInterval=60
