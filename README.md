@@ -29,30 +29,36 @@ Acceso al servidor del lab de genética
 
 ```ssh celiabc@132.248.15.41 -p 1967 -o ServerAliveInterval=60```
 
-#######Copiar las secuencias crudas desde la compu al servidor#####
+Copiar las secuencias crudas desde la computadora al servidor
 1. Subir archivos .fastq.gz al servidor
 
 En mi computadora, agrupar todos los datos crudos en una carpeta denominada BEGIOAM
-Crear previamente en el servidor la carpeta BEGIOAM Para crear carpetas usar mkdir Para eliminar carpetas rmdir
+Crear previamente en el servidor la carpeta BEGIOAM ( Para crear carpetas usar mkdir, Para eliminar carpetas rmdir)
 Crear dentro de esta carpeta otra carpeta con el nombre Secuencias_crudas (Aquí se van a copiar todas las secuencias crudas)
 Ir a la terminal de windows para copiar las secuencias crudas a la carpeta recién creada en el servidor
-En la terminal local colocar la siguiente instrucción: scp -r -P 1967 D:/BEGIOAM/Secuencias_crudas/* celiabc@132.248.15.41:/home/celiabc/BEGIOAM/Secuencias_crudas
-verificar la cantidad de secuencias creadas con ls ls | wc -l (tienen que haber 20)---OK
+En la terminal local colocar la siguiente instrucción: 
+
+```scp -r -P 1967 D:/BEGIOAM/Secuencias_crudas/* celiabc@132.248.15.41:/home/celiabc/BEGIOAM/Secuencias_crudas```
+
+verificar la cantidad de secuencias creadas con:
+
+```ls ls | wc -l```   (tienen que haber 20)
 
 una vez verificado se pasa al procesamiento
 
-1- Visualizar un archivo zcat MED_ADR-Med139-S72.F.fq.gz | head -n 4
-luego crear una carpeta para los fasqc: mkdir FASTQC_01
-luego aplicar a cada secuencia el fastqc
-fastqc *.fq.gz
+Visualizar un archivo : ```zcat MED_ADR-Med139-S72.F.fq.gz | head -n 4```
+Crear una carpeta para los fasqc: ```mkdir FASTQC_01```
+Aplicar a cada secuencia el fastqc: ```fastqc *.fq.gz```
 
 Como resultado se van a generar archivos .html y .zip. (los voy a mover a la carpeta FASTQC_01)
-Para mover a esta carpeta usar el comando mv *_fastqc.html *_fastqc.zip ../FASTQC_01/--OK
+
+```mv *_fastqc.html *_fastqc.zip ../FASTQC_01/```
 
 Crear la carpeta Trimmomatic_01 para copiar la secuencias analizadas y recortadas ahí
 
-# Esto asume que tus archivos terminan en .F.fq.gz y .R.fq.gz
-for infile in *.F.fq.gz; do
+Esto asume que los archivos terminan en .F.fq.gz y .R.fq.gz
+
+```for infile in *.F.fq.gz; do
 
     # Extrae el nombre base quitando el .F.fq.gz
     base=$(basename "$infile" .F.fq.gz)
@@ -64,7 +70,7 @@ for infile in *.F.fq.gz; do
       "../Trimmomatic_01/${base}.F_trim.fq.gz" "../Trimmomatic_01/${base}.F_untrim.fq.gz" \
       "../Trimmomatic_01/${base}.R_trim.fq.gz" "../Trimmomatic_01/${base}.R_untrim.fq.gz" \
       HEADCROP:12 LEADING:20 TRAILING:20 SLIDINGWINDOW:4:20 MINLEN:50 subir a 100
-done
+done```
 
 Aplicar el FASTQC a estos archivos para ver como quedaron los recortes
 crear una nueva carpeta Limpieza_secuencias_01 
