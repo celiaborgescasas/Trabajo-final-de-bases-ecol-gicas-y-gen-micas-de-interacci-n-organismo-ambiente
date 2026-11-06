@@ -58,36 +58,36 @@ Crear la carpeta Trimmomatic_01 para copiar la secuencias analizadas y recortada
 
 Esto asume que los archivos terminan en .F.fq.gz y .R.fq.gz
 
-```for infile in *.F.fq.gz; do
-
-    # Extrae el nombre base quitando el .F.fq.gz
+```
+for infile in *.F.fq.gz; do
     base=$(basename "$infile" .F.fq.gz)
-    
+
     echo "Procesando muestra: $base"
-    
+
     trimmomatic PE -threads 10 -phred33 \
       "${base}.F.fq.gz" "${base}.R.fq.gz" \
       "../Trimmomatic_01/${base}.F_trim.fq.gz" "../Trimmomatic_01/${base}.F_untrim.fq.gz" \
       "../Trimmomatic_01/${base}.R_trim.fq.gz" "../Trimmomatic_01/${base}.R_untrim.fq.gz" \
-      HEADCROP:12 LEADING:20 TRAILING:20 SLIDINGWINDOW:4:20 MINLEN:50 subir a 100
-done```
-
+      HEADCROP:12 LEADING:20 TRAILING:20 SLIDINGWINDOW:4:20 MINLEN:50
+done
+```
 Aplicar el FASTQC a estos archivos para ver como quedaron los recortes
 crear una nueva carpeta Limpieza_secuencias_01 
 ahora aplicar el FASTQC y mover los archivos a esta carpeta y luego al directorio para verlos
-fastqc *trim.fq.gz  (en la carpeta de Trimmomatic_01)
+
+```fastqc *trim.fq.gz```  (en la carpeta de Trimmomatic_01)
 
 
 Entrar a la carpeta Trimmomatic_01 y mover los .html y los .zip
 
-mv *.html /home/celiabc/BEGIOAM/Secuencias_limpieza_01/
-mv *.zip /home/celiabc/BEGIOAM/Secuencias_limpieza_01/
+```mv *.html /home/celiabc/BEGIOAM/Secuencias_limpieza_01/```
+```mv *.zip /home/celiabc/BEGIOAM/Secuencias_limpieza_01/```
 
 Mover los archivos.html del servidor a la computadora local para poder visualizarlos
 
-scp -r -P 1967 celiabc@132.248.15.41:/home/celiabc/BEGIOAM/Secuencias_limpieza_01/*.html D:/BEGIOAM/Secuencias_limpieza_01
+```scp -r -P 1967 celiabc@132.248.15.41:/home/celiabc/BEGIOAM/Secuencias_limpieza_01/*.html D:/BEGIOAM/Secuencias_limpieza_01```
 
-Abrir los .html y verificar si mejoró la calidad. En caso de no mejorar, repetir a partir del paso 4, definiendo nuevos parámetros de limpieza.
+Abrir los .html y verificar si mejoró la calidad. En caso de no mejorar, definiendo nuevos parámetros de limpieza.
 
 Una vez obtenidos los .fastq con la calidad deseada, copiarlos del servidor a la computadora local para respaldarlos. Estos serán los datos que se emplearán en los análisis posteriores.
 
@@ -98,8 +98,9 @@ hacer en ensamblaje
 hacer el snp calling y hacer los filtros de los snps
 
 
+Aplicación nuevamente de Trimmomatic
 
-######Aplicación nuevamente de TRimmomatic
+```
 #!/bin/bash
 set -euo pipefail
 
@@ -135,18 +136,19 @@ for infile in *.F.fq.gz; do
       2> "${OUTDIR}/${base}.trimmomatic.log"
 
 done
+```
 
 Aplicar FASTQC
 
-fastqc *trim.fq.gz  (en la carpeta de Trimmomatic_02)
+```fastqc *trim.fq.gz```  (en la carpeta de Trimmomatic_02)
 
 
-mv *.html /home/celiabc/BEGIOAM/Secuencias_limpieza_02/
-mv *.zip /home/celiabc/BEGIOAM/Secuencias_limpieza_02/
+```mv *.html /home/celiabc/BEGIOAM/Secuencias_limpieza_02/```
+```mv *.zip /home/celiabc/BEGIOAM/Secuencias_limpieza_02/```
 
 Mover los archivos.html del servidor a la computadora local para poder visualizarlos
 
-scp -r -P 1967 celiabc@132.248.15.41:/home/celiabc/BEGIOAM/Secuencias_limpieza_02/*.html D:/BEGIOAM/Secuencias_limpieza_02
+```scp -r -P 1967 celiabc@132.248.15.41:/home/celiabc/BEGIOAM/Secuencias_limpieza_02/*.html D:/BEGIOAM/Secuencias_limpieza_02```
 
 Abrir los .html y verificar si mejoró la calidad. En caso de no mejorar, repetir a partir del paso 4, definiendo nuevos parámetros de limpieza.
 
@@ -154,15 +156,26 @@ Una vez obtenidos los .fastq con la calidad deseada, copiarlos del servidor a la
 
 Hacer el filtrado en fastp
 instalarlo en el servidor
- # download the latest build
-wget http://opengene.org/fastp/fastp
-chmod a+x ./fastp
+Filtrado de secuencias con fastp
 
+Descargar e instalar fastp
+
+```
+# Descargar la última versión
+wget http://opengene.org/fastp/fastp
+
+# Dar permisos de ejecución
+chmod a+x ./fastp
+```
+
+Procesar las secuencias con fastp
+
+```
 #!/bin/bash
 set -euo pipefail
 
-FASTP="$HOME/fastp"                  # ejecutable descargado con wget (como en tu imagen)
-INDIR="../Trimmomatic_01"            # <-- carpeta con tus lecturas de entrada
+FASTP="$HOME/fastp"
+INDIR="../Trimmomatic_01"
 OUTDIR="../fastp_polyGA"
 
 mkdir -p "$OUTDIR"
@@ -193,15 +206,17 @@ for f in "${INDIR}"/*.F_trim.fq.gz; do
       2> "${OUTDIR}/${base}.fastp.log"
 
 done
+```
 
-aplicar nuevamente trimmomatic
+Aplicar nuevamente trimmomatic
 
+```
 #!/bin/bash
 set -euo pipefail
 
 OUTDIR="../Trimmomatic_03"
-ADAPTERS="/ruta/a/adapters/TruSeq3-PE-2.fa"   # <-- ajusta
-CROPLEN=137                                    # <-- ajusta según la longitud real
+ADAPTERS="/ruta/a/adapters/TruSeq3-PE-2.fa"   # Ajustar la ruta
+CROPLEN=137                                    # Ajustar según la longitud real
 
 mkdir -p "$OUTDIR"
 
@@ -232,16 +247,17 @@ for infile in *.F_polyGA.fq.gz; do
       2> "${OUTDIR}/${base}.trimmomatic.log"
 
 done
+```
 
-fastqc *trim.fq.gz  (en la carpeta de Trimmomatic_03)
+```fastqc *trim.fq.gz```  (en la carpeta de Trimmomatic_03)
 
-mv *.html /home/celiabc/BEGIOAM/Secuencias_limpieza_03/
-mv *.zip /home/celiabc/BEGIOAM/Secuencias_limpieza_03/
+```mv *.html /home/celiabc/BEGIOAM/Secuencias_limpieza_03/```
+```mv *.zip /home/celiabc/BEGIOAM/Secuencias_limpieza_03/```
 
 Mover los archivos.html del servidor a la computadora local para poder visualizarlos
 
-scp -r -P 1967 celiabc@132.248.15.41:/home/celiabc/BEGIOAM/Secuencias_limpieza_03/*.html D:/BEGIOAM/Secuencias_limpieza_03
-
+```scp -r -P 1967 celiabc@132.248.15.41:/home/celiabc/BEGIOAM/Secuencias_limpieza_03/*.html D:/BEGIOAM/Secuencias_limpieza_03```
+```
 #!/bin/bash
 set -euo pipefail
 
@@ -269,9 +285,9 @@ for f in "${INDIR}"/*.F_trim.fq.gz; do
       2> "${OUTDIR}/${base}.trimmomatic.log"
 
 done
-
-mv *.html /home/celiabc/BEGIOAM/Secuencias_limipieza_04/
-mv *.zip /home/celiabc/BEGIOAM/Secuencias_limipieza_04/
+```
+```mv *.html /home/celiabc/BEGIOAM/Secuencias_limipieza_04/```
+```mv *.zip /home/celiabc/BEGIOAM/Secuencias_limipieza_04/```
 
 
 ####Ensamblar contra el genoma de referencia
