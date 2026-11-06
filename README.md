@@ -2,9 +2,9 @@
 
 ## Título: "Estructura genética y modelos de idoneidad ambiental de Coryphaena hippurus en el océano Atlántico oriental y el mar Mediterráneo”
 
-Objetivos:
-Objetivo general
+### Objetivos
 
+Objetivo general:
 Evaluar la estructura y diferenciación genética de las poblaciones de dorado (Coryphaena hippurus) del mar Mediterráneo y el océano Atlántico, así como modelar su distribución potencial actual y futura bajo un escenario de cambio climático SSP5-8.5.
 
 
