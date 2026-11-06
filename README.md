@@ -1,4 +1,4 @@
-# Trabajo-final-de-bases-ecol-gicas-y-gen-micas-de-interacci-n-organismo-ambiente
+#Trabajo-final-de-bases-ecol-gicas-y-gen-micas-de-interacci-n-organismo-ambiente
 
 #Pasos #Acceso al servidor del lab de genética
 ssh celiabc@132.248.15.41 -p 1967 -o ServerAliveInterval=60
